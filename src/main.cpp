@@ -1,15 +1,21 @@
+#include <freerdp/client/cmdline.h>
+#include <freerdp/client/file.h>
+#include <freerdp/freerdp.h>
+#include <winpr/synch.h>
+#include <winpr/wtypes.h>
+
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 #include <thread>
 
 #include "common.hpp"
-#include "freerdp/freerdp.h"
 #include "log_helper.hpp"
 #include "use_header.hpp"
-#include "winpr/synch.h"
-#include "winpr/wtypes.h"
 
 static BOOL wfreerdp_client_global_init(void)
 {
-	//	WSADATA wsaData;
+	// WSADATA wsaData;
 	// WSAStartup(0x101, &wsaData);
 	// freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
 
@@ -29,38 +35,47 @@ static BOOL wfreerdp_client_new(freerdp* instance, rdpContext* context)
 {
 	LOG_INFO("wfreerdp_client_new");
 
-	// 忽略服务器证书
+	// Ignore server certificate
 	instance->settings->IgnoreCertificate = true;
+	// instance->settings->AuthenticationOnly = true;
+
+	instance->settings->DesktopWidth  = 800;
+	instance->settings->DesktopHeight = 600;
 
 	instance->PreConnect = [](freerdp* instance) -> BOOL {
 		LOG_INFO("pre connect...");
-
+		// freerdp_client_load_addins(instance->context->channels, instance->settings);
 		rdpGraphics* graphics = instance->context->graphics;
+		// Initialize bitmap handling callbacks
+		init_bitmap_callbacks(graphics);
 
-		// 初始化位图处理回调
-		// init_bitmap_callbacks(graphics);
+		// Initialize glyph handling callbacks
+		init_glyph_callbacks(graphics);
 
-		// 初始化字形处理回调
-		// init_glyph_callbacks(graphics);
+		// Initialize pointer handling callbacks
+		init_pointer_callbacks(graphics);
 
-		// 初始化指针处理回调
-		// init_pointer_callbacks(graphics);
+		LOG_INFO("pre connect... end");
 
 		return true;
 	};
+
 	instance->PostConnect = [](freerdp* instance) -> BOOL {
-		LOG_INFO("PostConnect..");
+		LOG_INFO("post  connect... end");
+		instance->context->update->EndPaint		 = [](rdpContext* context) -> BOOL { return true; };
+		instance->context->update->DesktopResize = [](rdpContext* context) -> BOOL { return true; };
 		return true;
 	};
+
 	instance->PostDisconnect = [](freerdp* instance) { LOG_INFO("PostDisconnect..."); };
 
 	instance->Authenticate =
 		[](freerdp* instance, char** username, char** password, char** domain) -> BOOL {
 		LOG_INFO("Authenticate");
 
-		*username = "ly";
-		*password = "1";
-		LOG_INFO("认证....");
+		*username = strdup("ly");
+		*password = strdup("1");
+		*domain	  = NULL;
 		return true;
 	};
 
@@ -74,12 +89,14 @@ static BOOL wfreerdp_client_new(freerdp* instance, rdpContext* context)
 									   const char* issuer,
 									   const char* fingerprint,
 									   DWORD	   flags) -> DWORD {
-		// todo  忽略服务器证书.. 看样子 直接return 一个2 就可以了
+		// todo Ignore server certificate.. Looks like we can simply return 2
 
 		if (instance->settings->IgnoreCertificate) {
 			LOG_INFO("Certificate validation bypassed");
 			return 2; /* Accept only for this session */
 		}
+		LOG_INFO("VerifyCertificateEx");
+
 		return 0;
 	};
 	return true;

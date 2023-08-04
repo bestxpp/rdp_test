@@ -2,3 +2,4 @@
 3thpart/json
 build
 .cache
+*.log

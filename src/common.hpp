@@ -81,47 +81,52 @@ inline int freerdp_handle_signals(void)
 
 static BOOL my_bitmap_new(rdpContext* context, rdpBitmap* bitmap)
 {
-	// TODO: 实现自定义的位图数据结构的创建和初始化
+	// TODO: Implement custom bitmap data structure creation and initialization
 	// ...
 	return true;
 }
 
 static void my_bitmap_free(rdpContext* context, rdpBitmap* bitmap)
 {
-	// TODO: 实现自定义的位图数据结构的释放
+	// TODO: Implement custom bitmap data structure release
 	// ...
 }
 
 static BOOL my_bitmap_paint(rdpContext* context, rdpBitmap* bitmap)
 {
-	// TODO: 实现自定义的位图绘制逻辑
+	// TODO: Implement custom bitmap drawing logic
 	// ...
 
-	// 获取位图的宽度和高度
+	// Get the width and height of the bitmap
 	int width  = bitmap->width;
 	int height = bitmap->height;
 
-	// 获取位图的像素数据
+	// Get the pixel data of the bitmap
 	BYTE* data = bitmap->data;
 
-	// 获取位图数据的长度
+	// Get the length of the bitmap data
 	int length = bitmap->length;
 
-	LOG_INFO("h{},w{},len{}", height, width, length);
+	LOG_INFO("height={}, width={}, length={}", height, width, length);
 
+	return true;
+}
+
+static BOOL my_Bitmap_SetSurface(rdpContext* context, rdpBitmap* bitmap, BOOL primary)
+{
 	return true;
 }
 
 static BOOL my_glyph_new(rdpContext* context, const rdpGlyph* glyph)
 {
-	// TODO: 实现自定义的字形数据结构的创建和初始化
+	// TODO: Implement custom glyph data structure creation and initialization
 	// ...
 	return true;
 }
 
 static void my_glyph_free(rdpContext* context, rdpGlyph* glyph)
 {
-	// TODO: 实现自定义的字形数据结构的释放
+	// TODO: Implement custom glyph data structure release
 	// ...
 }
 
@@ -135,7 +140,7 @@ static BOOL my_glyph_draw(rdpContext*	  context,
 						  INT32			  sy,
 						  BOOL			  fOpRedundant)
 {
-	// TODO: 实现自定义的字形绘制逻辑
+	// TODO: Implement custom glyph drawing logic
 	// ...
 	return true;
 }
@@ -149,7 +154,7 @@ static BOOL my_glyph_begindraw(rdpContext* context,
 							   UINT32	   fgcolor,
 							   BOOL		   fOpRedundant)
 {
-	// TODO: 实现自定义的字形绘制前准备工作
+	// TODO: Implement custom preparation work before drawing glyph
 	// ...
 	return true;
 }
@@ -162,14 +167,14 @@ static BOOL my_glyph_enddraw(rdpContext* context,
 							 UINT32		 bgcolor,
 							 UINT32		 fgcolor)
 {
-	// TODO: 实现自定义的字形绘制后处理工作
+	// TODO: Implement custom post-processing work after drawing glyph
 	// ...
 	return true;
 }
 
 static BOOL my_pointer_new(rdpContext* context, rdpPointer* pointer)
 {
-	// TODO: 实现自定义的指针数据结构的创建和初始化
+	// TODO: Implement custom pointer data structure creation and initialization
 	// ...
 
 	return true;
@@ -177,53 +182,71 @@ static BOOL my_pointer_new(rdpContext* context, rdpPointer* pointer)
 
 static void my_pointer_free(rdpContext* context, rdpPointer* pointer)
 {
-	// TODO: 实现自定义的指针数据结构的释放
+	// TODO: Implement custom pointer data structure release
 	// ...
 }
 
 static BOOL my_pointer_set(rdpContext* context, const rdpPointer* pointer)
 {
-	// TODO: 实现自定义的指针绘制逻辑
+	// TODO: Implement custom pointer drawing logic
 	// ...
 	return true;
 }
 
 static BOOL my_pointer_set_null(rdpContext* context)
 {
-	// TODO: 实现自定义的空指针处理逻辑
+	// TODO: Implement custom handling logic for a null pointer
 	// ...
 	return true;
 }
 
 static BOOL my_pointer_set_default(rdpContext* context)
 {
-	// TODO: 实现自定义的默认指针处理逻辑
+	// TODO: Implement custom handling logic for a default pointer
 	// ...
 	return true;
 }
 
-// 初始化操作
+static BOOL my_Pointer_SetPosition(rdpContext* context, UINT32 x, UINT32 y)
+{
+	return true;
+}
+
+// Initialization
 static void init_bitmap_callbacks(rdpGraphics* graphics)
 {
-	graphics->Bitmap_Prototype->New	  = my_bitmap_new;
-	graphics->Bitmap_Prototype->Free  = my_bitmap_free;
-	graphics->Bitmap_Prototype->Paint = my_bitmap_paint;
+	LOG_INFO("init_bitmap_callbacks");
+	rdpBitmap bitmap{};
+
+	bitmap.New		  = my_bitmap_new;
+	bitmap.Free		  = my_bitmap_free;
+	bitmap.Paint	  = my_bitmap_paint;
+	bitmap.SetSurface = my_Bitmap_SetSurface;
+	graphics_register_bitmap(graphics, &bitmap);
 }
 
 static void init_glyph_callbacks(rdpGraphics* graphics)
 {
-	graphics->Glyph_Prototype->New		 = my_glyph_new;
-	graphics->Glyph_Prototype->Free		 = my_glyph_free;
-	graphics->Glyph_Prototype->Draw		 = my_glyph_draw;
-	graphics->Glyph_Prototype->BeginDraw = my_glyph_begindraw;
-	graphics->Glyph_Prototype->EndDraw	 = my_glyph_enddraw;
+	LOG_INFO("init_glyph_callbacks");
+	rdpGlyph glyph{};
+	glyph.New		= my_glyph_new;
+	glyph.Free		= my_glyph_free;
+	glyph.Draw		= my_glyph_draw;
+	glyph.BeginDraw = my_glyph_begindraw;
+	glyph.EndDraw	= my_glyph_enddraw;
+	graphics_register_glyph(graphics, &glyph);
 }
 
 static void init_pointer_callbacks(rdpGraphics* graphics)
 {
-	graphics->Pointer_Prototype->New		= my_pointer_new;
-	graphics->Pointer_Prototype->Free		= my_pointer_free;
-	graphics->Pointer_Prototype->Set		= my_pointer_set;
-	graphics->Pointer_Prototype->SetNull	= my_pointer_set_null;
-	graphics->Pointer_Prototype->SetDefault = my_pointer_set_default;
+	LOG_INFO("init_pointer_callbacks");
+	rdpPointer pointer{};
+	pointer.size		= sizeof(rdpPointer);
+	pointer.New			= my_pointer_new;
+	pointer.Free		= my_pointer_free;
+	pointer.Set			= my_pointer_set;
+	pointer.SetNull		= my_pointer_set_null;
+	pointer.SetDefault	= my_pointer_set_default;
+	pointer.SetPosition = my_Pointer_SetPosition;
+	graphics_register_pointer(graphics, &pointer);
 }
