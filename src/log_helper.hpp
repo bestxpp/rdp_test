@@ -88,3 +88,4 @@ critical = SPDLOG_LEVEL_CRITICAL,*/
 #define LOG_DEBUG(...) SPDLOG_LOGGER_DEBUG(log_handle, __VA_ARGS__)
 #define LOG_INFO(...)  SPDLOG_LOGGER_INFO(log_handle, __VA_ARGS__)
 #define LOG_ERROR(...) SPDLOG_LOGGER_ERROR(log_handle, __VA_ARGS__)
+#define LOG_WARN(...)  SPDLOG_LOGGER_WARN(log_handle, __VA_ARGS__)

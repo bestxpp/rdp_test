@@ -10,75 +10,6 @@
 #include "log_helper.hpp"
 #include "winpr/wtypes.h"
 
-const int fatal_signals[] = {SIGABRT,	SIGALRM, SIGBUS,  SIGFPE,  SIGHUP,	SIGILL,
-							 SIGINT,	SIGKILL, SIGQUIT, SIGSEGV, SIGSTOP, SIGTERM,
-							 SIGTSTP,	SIGTTIN, SIGTTOU, SIGUSR1, SIGUSR2,
-#ifdef SIGPOLL
-							 SIGPOLL,
-#endif
-#ifdef SIGPROF
-							 SIGPROF,
-#endif
-#ifdef SIGSYS
-							 SIGSYS,
-#endif
-							 SIGTRAP,
-#ifdef SIGVTALRM
-							 SIGVTALRM,
-#endif
-							 SIGXCPU,	SIGXFSZ};
-
-static void fatal_handler(int signum)
-{
-	struct sigaction default_sigaction;
-	sigset_t		 this_mask;
-	static BOOL		 recursive = FALSE;
-
-	if (!recursive) {
-		recursive = TRUE;
-
-		// winpr_log_backtrace(TAG, WLOG_ERROR, 20);
-	}
-	if (terminal_needs_reset)
-		tcsetattr(terminal_fildes, TCSAFLUSH, &orig_flags);
-
-	default_sigaction.sa_handler = SIG_DFL;
-	sigfillset(&(default_sigaction.sa_mask));
-	default_sigaction.sa_flags = 0;
-	sigaction(signum, &default_sigaction, NULL);
-	sigemptyset(&this_mask);
-	sigaddset(&this_mask, signum);
-	pthread_sigmask(SIG_UNBLOCK, &this_mask, NULL);
-	raise(signum);
-}
-
-inline int freerdp_handle_signals(void)
-{
-	size_t			 signal_index;
-	sigset_t		 orig_set;
-	struct sigaction orig_sigaction;
-	struct sigaction fatal_sigaction;
-	// WLog_DBG(TAG, "Registering signal hook...");
-	sigfillset(&(fatal_sigaction.sa_mask));
-	sigdelset(&(fatal_sigaction.sa_mask), SIGCONT);
-	pthread_sigmask(SIG_BLOCK, &(fatal_sigaction.sa_mask), &orig_set);
-	fatal_sigaction.sa_handler = fatal_handler;
-	fatal_sigaction.sa_flags   = 0;
-
-	for (signal_index = 0; signal_index < ARRAYSIZE(fatal_signals); signal_index++) {
-		if (sigaction(fatal_signals[signal_index], NULL, &orig_sigaction) == 0) {
-			if (orig_sigaction.sa_handler != SIG_IGN) {
-				sigaction(fatal_signals[signal_index], &fatal_sigaction, NULL);
-			}
-		}
-	}
-
-	pthread_sigmask(SIG_SETMASK, &orig_set, NULL);
-	/* Ignore SIGPIPE signal. */
-	signal(SIGPIPE, SIG_IGN);
-	return 0;
-}
-
 static BOOL my_bitmap_new(rdpContext* context, rdpBitmap* bitmap)
 {
 	// TODO: Implement custom bitmap data structure creation and initialization
@@ -249,4 +180,95 @@ static void init_pointer_callbacks(rdpGraphics* graphics)
 	pointer.SetDefault	= my_pointer_set_default;
 	pointer.SetPosition = my_Pointer_SetPosition;
 	graphics_register_pointer(graphics, &pointer);
+}
+
+inline void guac_rdp_push_settings(freerdp* rdp)
+{
+	// 	rdpSettings* rdp_settings = rdp->settings;
+
+	// 	/* Authentication */
+	// 	rdp_settings->Username = strdup("ly");
+	// 	rdp_settings->Password = strdup("1");
+
+	// 	/* Connection */
+	// 	// rdp_settings->ServerHostname = guac_strdup(guac_settings->hostname);
+	// 	// rdp_settings->ServerPort	 = guac_settings->port;
+
+	// 	/* Session */
+	// 	rdp_settings->ColorDepth	 = 16;
+	// 	rdp_settings->DesktopWidth	 = 800;
+	// 	rdp_settings->DesktopHeight	 = 600;
+	// 	rdp_settings->AlternateShell = NULL;
+	// 	// rdp_settings->KeyboardLayout = guac_settings->server_layout->freerdp_keyboard_layout;
+
+	// 	/* Performance flags */
+	// 	/* Explicitly set flag value */
+	// 	rdp_settings->PerformanceFlags = PERF_FLAG_NONE;
+
+	// 	/* Set individual flags - some FreeRDP versions overwrite the above */
+	// 	rdp_settings->AllowFontSmoothing	  = 0;
+	// 	rdp_settings->DisableWallpaper		  = 0;
+	// 	rdp_settings->DisableFullWindowDrag	  = 0;
+	// 	rdp_settings->DisableMenuAnims		  = 0;
+	// 	rdp_settings->DisableThemes			  = 0;
+	// 	rdp_settings->AllowDesktopComposition = 0;
+
+	// 	/* Client name */
+
+	// 	/* Console */
+	// 	rdp_settings->ConsoleSession	 = false;
+	// 	rdp_settings->RemoteConsoleAudio = false;
+
+	// 	/* Audio */
+	// 	rdp_settings->AudioPlayback = false;
+
+	// 	/* Audio capture */
+	// 	rdp_settings->AudioCapture =
+
+	// 		/* Display Update channel */
+	// 		rdp_settings->SupportDisplayControl = 1;
+
+	// 	/* Security */
+
+	// 	// rdp_settings->Authentication	= !guac_settings->disable_authentication;
+	// 	rdp_settings->IgnoreCertificate = true;
+
+	// 	/* RemoteApp */
+
+	// 	/* Preconnection ID */
+
+	// 	/* Preconnection BLOB */
+	// 	// if (guac_settings->preconnection_blob != NULL) {
+	// 	// 	rdp_settings->NegotiateSecurityLayer = FALSE;
+	// 	// 	rdp_settings->SendPreconnectionPdu	 = TRUE;
+	// 	// 	rdp_settings->PreconnectionBlob		 = guac_strdup(guac_settings->preconnection_blob);
+	// 	// }
+
+	// 	/* Store load balance info (and calculate length) if provided */
+
+	// 	// rdp_settings->GlyphSupportLevel = !guac_settings->disable_glyph_caching ?
+	// GLYPH_SUPPORT_FULL
+	// 	// : GLYPH_SUPPORT_NONE; 如果开启字形缓存，win server 2008 r2 点击命令行崩溃，
+	// 	// GLYPH_SUPPORT_FULL
+	// 	rdp_settings->GlyphSupportLevel = GLYPH_SUPPORT_NONE;
+
+	// 	rdp_settings->OsMajorType	= OSMAJORTYPE_UNSPECIFIED;
+	// 	rdp_settings->OsMinorType	= OSMINORTYPE_UNSPECIFIED;
+	// 	rdp_settings->DesktopResize = TRUE;
+	// 	/* Claim support only for specific updates, independent of FreeRDP defaults */
+	// 	rdp_settings->OrderSupport[NEG_DSTBLT_INDEX]	= TRUE;
+	// 	rdp_settings->OrderSupport[NEG_SCRBLT_INDEX]	= TRUE;
+	// 	rdp_settings->OrderSupport[NEG_MEMBLT_INDEX]	= false;
+	// 	rdp_settings->OrderSupport[NEG_MEMBLT_V2_INDEX] = FALSE;
+
+	// 	rdp_settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
+	// 	rdp_settings->OrderSupport[NEG_FAST_INDEX_INDEX]  = FALSE;
+	// 	rdp_settings->OrderSupport[NEG_FAST_GLYPH_INDEX]  = FALSE;
+
+	// #ifdef HAVE_RDPSETTINGS_ALLOWUNANOUNCEDORDERSFROMSERVER
+	// 	/* Do not consider server use of unannounced orders to be a fatal error */
+	// 	rdp_settings->AllowUnanouncedOrdersFromServer = TRUE;
+	// #endif
+	// 	rdp_settings->FastPathInput	 = FALSE;
+	// 	rdp_settings->FastPathOutput = FALSE;
 }
