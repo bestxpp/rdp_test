@@ -13,18 +13,26 @@
 #include <freerdp/constants.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/gdi/gdi.h>
+#include <freerdp/gdi/gfx.h>
 #include <freerdp/log.h>
 #include <freerdp/utils/signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <winpr/crt.h>
 #include <winpr/synch.h>
 
 #include <chrono>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
+
+#include "freerdp/freerdp.h"
+#include "winpr/wtypes.h"
 
 // 保存图片用。
 #include <png.h>

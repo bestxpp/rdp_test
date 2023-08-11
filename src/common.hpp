@@ -1,14 +1,7 @@
 #pragma once
 
-#include <errno.h>
-#include <freerdp/log.h>
-#include <freerdp/utils/signal.h>
-#include <stddef.h>
-#include <string.h>
-#include <winpr/crt.h>
-
 #include "log_helper.hpp"
-#include "winpr/wtypes.h"
+#include "use_header.hpp"
 
 static BOOL my_bitmap_new(rdpContext* context, rdpBitmap* bitmap)
 {

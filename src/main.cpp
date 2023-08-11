@@ -19,19 +19,8 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
-
-#include <cstddef>
-#include <cstdio>
-#include <cstring>
-#include <thread>
-
 #include "common.hpp"
-#include "freerdp/freerdp.h"
 #include "log_helper.hpp"
-#include "tf_channels.h"
-#include "tf_freerdp.h"
-#include "winpr/wtypes.h"
 
 enum guac_rdp_security
 {
@@ -313,7 +302,7 @@ static BOOL rdp_freerdp_pre_connect(freerdp* instance)
 
 	init_bitmap_callbacks(instance->context->graphics);
 	init_glyph_callbacks(instance->context->graphics);
-	init_glyph_callbacks(instance->context->graphics);
+	init_pointer_callbacks(instance->context->graphics);
 
 	instance->update->PlaySound				= NULL;
 	instance->update->SetKeyboardIndicators = NULL;
