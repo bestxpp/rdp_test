@@ -21,7 +21,9 @@
 
 #include <unistd.h>
 
+#include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <thread>
 
 #include "common.hpp"
@@ -31,324 +33,361 @@
 #include "tf_freerdp.h"
 #include "winpr/wtypes.h"
 
-/* This function is called whenever a new frame starts.
- * It can be used to reset invalidated areas. */
-static BOOL tf_begin_paint(rdpContext* context)
+enum guac_rdp_security
 {
-	// LOG_INFO(__FUNCTION__);
-	rdpGdi* gdi							   = context->gdi;
-	gdi->primary->hdc->hwnd->invalid->null = TRUE;
-	return TRUE;
-}
 
-/* This function is called when the library completed composing a new
- * frame. Read out the changed areas and blit them to your output device.
- * The image buffer will have the format specified by gdi_init
- */
-static BOOL tf_end_paint(rdpContext* context)
+	/**
+	 * Legacy RDP encryption.
+	 */
+	GUAC_SECURITY_RDP,
+
+	/**
+	 * TLS encryption.
+	 */
+	GUAC_SECURITY_TLS,
+
+	/**
+	 * Network level authentication.
+	 */
+	GUAC_SECURITY_NLA,
+
+	/**
+	 * Extended network level authentication.
+	 */
+	GUAC_SECURITY_EXTENDED_NLA,
+
+	/**
+	 * Negotiate security methods supported by Hyper-V's "VMConnect" feature.
+	 */
+	GUAC_SECURITY_VMCONNECT,
+
+	/**
+	 * Negotiate a security method supported by both server and client.
+	 */
+	GUAC_SECURITY_ANY
+
+} guac_rdp_security;
+
+void guac_rdp_push_settings(freerdp* rdp)
 {
-	// LOG_INFO(__FUNCTION__);
-	rdpGdi* gdi = context->gdi;
+	rdpSettings* rdp_settings = rdp->settings;
 
-	if (gdi->primary->hdc->hwnd->invalid->null) {
-		return TRUE;
+	/* Authentication */
+	rdp_settings->Domain   = NULL;
+	rdp_settings->Username = strdup("ly");
+	rdp_settings->Password = strdup("1");
+
+	/* Connection */
+	rdp_settings->ServerHostname = strdup("192.168.68.130");
+	rdp_settings->ServerPort	 = 3389;
+
+	/* Session */
+	rdp_settings->ColorDepth	 = 16;
+	rdp_settings->DesktopWidth	 = 800;
+	rdp_settings->DesktopHeight	 = 600;
+	rdp_settings->AlternateShell = NULL;
+
+	// 键盘暂时注释
+	// rdp_settings->KeyboardLayout = guac_settings->server_layout->freerdp_keyboard_layout;
+
+	/* Performance flags */
+	/* Explicitly set flag value */
+	rdp_settings->PerformanceFlags = PERF_FLAG_NONE;
+
+	/* Set individual flags - some FreeRDP versions overwrite the above */
+	rdp_settings->AllowFontSmoothing	  = false;
+	rdp_settings->DisableWallpaper		  = true;
+	rdp_settings->DisableFullWindowDrag	  = true;
+	rdp_settings->DisableMenuAnims		  = true;
+	rdp_settings->DisableThemes			  = true;
+	rdp_settings->AllowDesktopComposition = false;
+
+	/* Client name */
+	// if (guac_settings->client_name != NULL) {
+	// 	guac_strlcpy(rdp_settings->ClientHostname, guac_settings->client_name, RDP_CLIENT_HOSTNAME_SIZE);
+	// }
+	rdp_settings->ClientHostname = strdup("test");
+
+	/* Console */
+	rdp_settings->ConsoleSession	 = false;
+	rdp_settings->RemoteConsoleAudio = false;
+
+	/* Audio */
+	rdp_settings->AudioPlayback = false;
+
+	/* Audio capture */
+	rdp_settings->AudioCapture = false;
+
+	/* Display Update channel */
+	rdp_settings->SupportDisplayControl = false;  //(guac_settings->resize_method == GUAC_RESIZE_DISPLAY_UPDATE);
+
+	/* Device redirection */
+	rdp_settings->DeviceRedirection = false;
+
+	/* Security */
+	switch (5) {
+		/* Legacy RDP encryption */
+		case GUAC_SECURITY_RDP:
+			rdp_settings->RdpSecurity		  = TRUE;
+			rdp_settings->TlsSecurity		  = FALSE;
+			rdp_settings->NlaSecurity		  = FALSE;
+			rdp_settings->ExtSecurity		  = FALSE;
+			rdp_settings->UseRdpSecurityLayer = TRUE;
+			rdp_settings->EncryptionLevel	  = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
+			rdp_settings->EncryptionMethods =
+				ENCRYPTION_METHOD_40BIT | ENCRYPTION_METHOD_128BIT | ENCRYPTION_METHOD_FIPS;
+			break;
+
+		/* TLS encryption */
+		case GUAC_SECURITY_TLS:
+			rdp_settings->RdpSecurity = FALSE;
+			rdp_settings->TlsSecurity = TRUE;
+			rdp_settings->NlaSecurity = FALSE;
+			rdp_settings->ExtSecurity = FALSE;
+			break;
+
+		/* Network level authentication */
+		case GUAC_SECURITY_NLA:
+			rdp_settings->RdpSecurity = FALSE;
+			rdp_settings->TlsSecurity = FALSE;
+			rdp_settings->NlaSecurity = TRUE;
+			rdp_settings->ExtSecurity = FALSE;
+			break;
+
+		/* Extended network level authentication */
+		case GUAC_SECURITY_EXTENDED_NLA:
+			rdp_settings->RdpSecurity = FALSE;
+			rdp_settings->TlsSecurity = FALSE;
+			rdp_settings->NlaSecurity = FALSE;
+			rdp_settings->ExtSecurity = TRUE;
+			break;
+
+		/* Hyper-V "VMConnect" negotiation mode */
+		case GUAC_SECURITY_VMCONNECT:
+			rdp_settings->RdpSecurity	= FALSE;
+			rdp_settings->TlsSecurity	= TRUE;
+			rdp_settings->NlaSecurity	= TRUE;
+			rdp_settings->ExtSecurity	= FALSE;
+			rdp_settings->VmConnectMode = TRUE;
+			break;
+
+		/* All security types */
+		case GUAC_SECURITY_ANY:
+			rdp_settings->RdpSecurity = TRUE;
+			rdp_settings->TlsSecurity = TRUE;
+			rdp_settings->NlaSecurity = TRUE;
+			rdp_settings->ExtSecurity = FALSE;
+			break;
 	}
 
+	/* Authentication */
+	rdp_settings->Authentication	= TRUE;
+	rdp_settings->IgnoreCertificate = TRUE;
+
+	/* RemoteApp */
+	// if (guac_settings->remote_app != NULL) {
+	// 	rdp_settings->Workarea						= TRUE;
+	// 	rdp_settings->RemoteApplicationMode			= TRUE;
+	// 	rdp_settings->RemoteAppLanguageBarSupported = TRUE;
+	// 	rdp_settings->RemoteApplicationProgram		= guac_strdup(guac_settings->remote_app);
+	// 	rdp_settings->ShellWorkingDirectory			= guac_strdup(guac_settings->remote_app_dir);
+	// 	rdp_settings->RemoteApplicationCmdLine		= guac_strdup(guac_settings->remote_app_args);
+	// }
+
+	// /* Preconnection ID */
+	// if (guac_settings->preconnection_id != -1) {
+	// 	rdp_settings->NegotiateSecurityLayer = FALSE;
+	// 	rdp_settings->SendPreconnectionPdu	 = TRUE;
+	// 	rdp_settings->PreconnectionId		 = guac_settings->preconnection_id;
+	// }
+
+	// /* Preconnection BLOB */
+	// if (guac_settings->preconnection_blob != NULL) {
+	// 	rdp_settings->NegotiateSecurityLayer = FALSE;
+	// 	rdp_settings->SendPreconnectionPdu	 = TRUE;
+	// 	rdp_settings->PreconnectionBlob		 = guac_strdup(guac_settings->preconnection_blob);
+	// }
+
+	/* Enable use of RD gateway if a gateway hostname is provided */
+	// if (guac_settings->gateway_hostname != NULL) {
+	// 	/* Enable RD gateway */
+	// 	rdp_settings->GatewayEnabled = TRUE;
+
+	// 	/* RD gateway connection details */
+	// 	rdp_settings->GatewayHostname = guac_strdup(guac_settings->gateway_hostname);
+	// 	rdp_settings->GatewayPort	  = guac_settings->gateway_port;
+
+	// 	/* RD gateway credentials */
+	// 	rdp_settings->GatewayUseSameCredentials = FALSE;
+	// 	rdp_settings->GatewayDomain				= guac_strdup(guac_settings->gateway_domain);
+	// 	rdp_settings->GatewayUsername			= guac_strdup(guac_settings->gateway_username);
+	// 	rdp_settings->GatewayPassword			= guac_strdup(guac_settings->gateway_password);
+	// }
+
+	/* Store load balance info (and calculate length) if provided */
+	// if (guac_settings->load_balance_info != NULL) {
+	// 	rdp_settings->LoadBalanceInfo		= (BYTE*)guac_strdup(guac_settings->load_balance_info);
+	// 	rdp_settings->LoadBalanceInfoLength = strlen(guac_settings->load_balance_info);
+	// }
+
+	rdp_settings->BitmapCacheEnabled	= true;
+	rdp_settings->OffscreenSupportLevel = TRUE;
+
+	// rdp_settings->GlyphSupportLevel = !guac_settings->disable_glyph_caching ? GLYPH_SUPPORT_FULL : GLYPH_SUPPORT_NONE;
+	// 如果开启字形缓存，win server 2008 r2 点击命令行崩溃， GLYPH_SUPPORT_FULL
+	rdp_settings->GlyphSupportLevel = GLYPH_SUPPORT_NONE;
+
+	rdp_settings->OsMajorType	= OSMAJORTYPE_UNSPECIFIED;
+	rdp_settings->OsMinorType	= OSMINORTYPE_UNSPECIFIED;
+	rdp_settings->DesktopResize = TRUE;
+	/* Claim support only for specific updates, independent of FreeRDP defaults */
+	ZeroMemory(rdp_settings->OrderSupport, 32);
+	rdp_settings->OrderSupport[NEG_DSTBLT_INDEX]	= TRUE;
+	rdp_settings->OrderSupport[NEG_SCRBLT_INDEX]	= TRUE;
+	rdp_settings->OrderSupport[NEG_MEMBLT_INDEX]	= TRUE;
+	rdp_settings->OrderSupport[NEG_MEMBLT_V2_INDEX] = TRUE;
+
+	rdp_settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
+	rdp_settings->OrderSupport[NEG_FAST_INDEX_INDEX]  = TRUE;
+	rdp_settings->OrderSupport[NEG_FAST_GLYPH_INDEX]  = TRUE;
+
+#ifdef HAVE_RDPSETTINGS_ALLOWUNANOUNCEDORDERSFROMSERVER
+	/* Do not consider server use of unannounced orders to be a fatal error */
+	rdp_settings->AllowUnanouncedOrdersFromServer = TRUE;
+#endif
+
+	// rdp_settings->FastPathInput=FALSE;
+	// rdp_settings->FastPathOutput=FALSE;
+}
+
+BOOL guac_rdp_gdi_desktop_resize(rdpContext* context)
+{
 	return TRUE;
 }
 
-/* This function is called to output a System BEEP */
-static BOOL tf_play_sound(rdpContext* context, const PLAY_SOUND_UPDATE* play_sound)
+BOOL guac_rdp_gdi_end_paint(rdpContext* context)
 {
-	LOG_INFO(__FUNCTION__);
-	/* TODO: Implement */
-	WINPR_UNUSED(context);
-	WINPR_UNUSED(play_sound);
+	/* IGNORE */
 	return TRUE;
 }
 
-/* This function is called to update the keyboard indocator LED */
-static BOOL tf_keyboard_set_indicators(rdpContext* context, UINT16 led_flags)
+BOOL guac_rdp_gdi_set_bounds(rdpContext* context, const rdpBounds* bounds)
 {
-	LOG_INFO(__FUNCTION__);
-	/* TODO: Set local keyboard indicator LED status */
-	WINPR_UNUSED(context);
-	WINPR_UNUSED(led_flags);
 	return TRUE;
 }
 
-/* This function is called to set the IME state */
-static BOOL tf_keyboard_set_ime_status(rdpContext* context, UINT16 imeId, UINT32 imeState, UINT32 imeConvMode)
+BOOL guac_rdp_gdi_dstblt(rdpContext* context, const DSTBLT_ORDER* dstblt)
 {
-	LOG_INFO(__FUNCTION__);
+	return TRUE;
+}
 
-	if (!context)
+BOOL guac_rdp_gdi_patblt(rdpContext* context, PATBLT_ORDER* patblt)
+{
+	return TRUE;
+}
+
+BOOL guac_rdp_gdi_scrblt(rdpContext* context, const SCRBLT_ORDER* scrblt)
+{
+	return TRUE;
+}
+
+BOOL guac_rdp_gdi_memblt(rdpContext* context, MEMBLT_ORDER* memblt)
+{
+	return TRUE;
+}
+
+BOOL guac_rdp_gdi_opaquerect(rdpContext* context, const OPAQUE_RECT_ORDER* opaque_rect)
+{
+	return TRUE;
+}
+
+static BOOL rdp_freerdp_pre_connect(freerdp* instance)
+{
+	guac_rdp_push_settings(instance);
+
+	freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
+
+	if (!gdi_init(instance, PIXEL_FORMAT_RGB16)) {
 		return FALSE;
-
-	LOG_WARN("KeyboardSetImeStatus(unitId= {}, imeState={},imeConvMode={}) ignored",
-			 imeId,
-			 imeState,
-			 imeConvMode);
-	return TRUE;
-}
-
-static BOOL tf_DesktopResize(rdpContext* context)
-{
-	LOG_INFO(__FUNCTION__);
-	return TRUE;
-}
-
-void save_to_png(BYTE* imageData, int width, int height, const char* filename)
-{
-	FILE* fp = fopen(filename, "wb");
-	if (!fp)
-		abort();
-
-	png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if (!png)
-		abort();
-
-	png_infop info = png_create_info_struct(png);
-	if (!info)
-		abort();
-
-	if (setjmp(png_jmpbuf(png)))
-		abort();
-
-	png_init_io(png, fp);
-
-	png_set_IHDR(
-		png,
-		info,
-		width,
-		height,
-		8,
-		PNG_COLOR_TYPE_RGBA,
-		PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_DEFAULT,
-		PNG_FILTER_TYPE_DEFAULT);
-	png_write_info(png, info);
-
-	png_bytep rows[height];
-	for (int y = 0; y < height; y++) {
-		rows[y] = &imageData[y * width * 4];
 	}
 
-	png_write_image(png, rows);
-	png_write_end(png, NULL);
+	init_bitmap_callbacks(instance->context->graphics);
+	init_glyph_callbacks(instance->context->graphics);
+	init_glyph_callbacks(instance->context->graphics);
 
-	fclose(fp);
+	instance->update->PlaySound				= NULL;
+	instance->update->SetKeyboardIndicators = NULL;
 
-	if (png && info)
-		png_destroy_write_struct(&png, &info);
+	instance->update->DesktopResize = guac_rdp_gdi_desktop_resize;
+	instance->update->EndPaint		= guac_rdp_gdi_end_paint;
+	instance->update->SetBounds		= guac_rdp_gdi_set_bounds;
+
+	rdpPrimaryUpdate* primary = instance->update->primary;
+	primary->DstBlt			  = guac_rdp_gdi_dstblt;
+	primary->PatBlt			  = guac_rdp_gdi_patblt;
+	primary->ScrBlt			  = guac_rdp_gdi_scrblt;
+	primary->MemBlt			  = guac_rdp_gdi_memblt;
+	primary->OpaqueRect		  = guac_rdp_gdi_opaquerect;
+
+	pointer_cache_register_callbacks(instance->update);
+	glyph_cache_register_callbacks(instance->update);
+	brush_cache_register_callbacks(instance->update);
+	bitmap_cache_register_callbacks(instance->update);
+	offscreen_cache_register_callbacks(instance->update);
+	palette_cache_register_callbacks(instance->update);
+
+	return TRUE;
 }
 
-static int	img_id = 0;
-static BOOL tf_BitmapUpdate(rdpContext* context, const BITMAP_UPDATE* bitmap)
+static BOOL rdp_freerdp_authenticate(freerdp* instance, char** username, char** password, char** domain)
 {
-	LOG_ERROR(__FUNCTION__);
+	LOG_ERROR("认证....");
+	*username = strdup("ly");
+	*password = strdup("1");
+	*domain	  = NULL;
+	return TRUE;
+}
 
-	for (int i = 0; i < bitmap->number; i++) {
-		BITMAP_DATA* data = &bitmap->rectangles[i];
+DWORD rdp_freerdp_verify_certificate(freerdp*	 instance,
+									 const char* host,
+									 UINT16		 port,
+									 const char* common_name,
+									 const char* subject,
+									 const char* issuer,
+									 const char* fingerprint,
+									 DWORD		 flags)
+{
+	/* Bypass validation if ignore_certificate given */
 
-		UINT32 width  = data->destRight - data->destLeft;
-		UINT32 height = data->destBottom - data->destTop;
+	LOG_ERROR("开始认证");
 
-		BYTE* imageData = data->bitmapDataStream;
-
-		char filename[256] = {};
-		snprintf(filename, sizeof(filename), "image_%d.png", ++img_id);
-		save_to_png(imageData, width, height, filename);
+	if (instance->settings->IgnoreCertificate) {
+		return 2; /* Accept only for this session */
 	}
-	return TRUE;
+	return 0; /* Reject certificate */
 }
 
-BOOL tf_SurfaceCommand(rdpContext* context, wStream* s)
+int main(int argc, char* argv[])
 {
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
+	freerdp* rdp_inst			  = freerdp_new();
+	rdp_inst->PreConnect		  = rdp_freerdp_pre_connect;
+	rdp_inst->Authenticate		  = rdp_freerdp_authenticate;
+	rdp_inst->VerifyCertificateEx = rdp_freerdp_verify_certificate;
 
-BOOL tf_SurfaceBits(rdpContext* context, const SURFACE_BITS_COMMAND* surfaceBitsCommand)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-static BOOL tf_gdi_surface_frame_marker(rdpContext* context, const SURFACE_FRAME_MARKER* surface_frame_marker)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-BOOL tf_pDstBlt(rdpContext* context, const DSTBLT_ORDER* dstblt)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-BOOL tf_pPatBlt(rdpContext* context, PATBLT_ORDER* patblt)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-BOOL tf_pScrBlt(rdpContext* context, const SCRBLT_ORDER* scrblt)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-BOOL tf_pMemBlt(rdpContext* context, MEMBLT_ORDER* memblt)
-{
-	LOG_ERROR(__FUNCTION__);
-	return TRUE;
-}
-
-BOOL tf_pOpaqueRect(rdpContext* context, const OPAQUE_RECT_ORDER* opaque_rect)
-{
-	return TRUE;
-}
-
-/* Called before a connection is established.
- * Set all configuration options to support and load channels here. */
-static BOOL tf_pre_connect(freerdp* instance)
-{
-	LOG_INFO(__FUNCTION__);
-
-	rdpSettings* settings;
-	settings = instance->settings;
-
-	// settings->GfxAVC444	  = FALSE;
-	// settings->GfxAVC444v2 = FALSE;
-
-	// rdpGraphics* graphics = instance->context->graphics;
-	// // Initialize bitmap handling callbacks
-	// init_bitmap_callbacks(graphics);
-
-	// // Initialize glyph handling callbacks
-	// init_glyph_callbacks(graphics);
-
-	// // Initialize pointer handling callbacks
-	// init_pointer_callbacks(graphics);
-
-	//
-
-	/* Optional OS identifier sent to server */
-	settings->OsMajorType = OSMAJORTYPE_UNIX;
-	settings->OsMinorType = OSMINORTYPE_NATIVE_XSERVER;
-	/* settings->OrderSupport is initialized at this point.
-	 * Only override it if you plan to implement custom order
-	 * callbacks or deactiveate certain features. */
-	/* Register the channel listeners.
-	 * They are required to set up / tear down channels if they are loaded. */
-	PubSub_SubscribeChannelConnected(instance->context->pubSub, tf_OnChannelConnectedEventHandler);
-	PubSub_SubscribeChannelDisconnected(instance->context->pubSub,
-										tf_OnChannelDisconnectedEventHandler);
-
-	/* Load all required plugins / channels / libraries specified by current
-	 * settings. */
-	if (!freerdp_client_load_addins(instance->context->channels, instance->settings)) {
-		LOG_ERROR("Failed to load addins");
-		return FALSE;
+	if (!freerdp_context_new(rdp_inst)) {
+		LOG_ERROR("failed ...........");
 	}
 
-	LOG_ERROR("rfx: {}", instance->settings->RemoteFxCodec);
-	LOG_INFO("Successfully loaded addins");
-
-	/* TODO: Any code your client requires */
-	return TRUE;
-}
-
-/* Called after a RDP connection was successfully established.
- * Settings might have changed during negociation of client / server feature
- * support.
- *
- * Set up local framebuffers and paing callbacks.
- * If required, register pointer callbacks to change the local mouse cursor
- * when hovering over the RDP window
- */
-static BOOL tf_post_connect(freerdp* instance)
-{
-	LOG_INFO(__FUNCTION__);
-	if (!gdi_init(instance, PIXEL_FORMAT_XRGB32))
-		return FALSE;
-
-	LOG_ERROR("rfx: {}", instance->settings->RemoteFxCodec);
-
-	instance->update->BeginPaint			= tf_begin_paint;
-	instance->update->EndPaint				= tf_end_paint;
-	instance->update->PlaySound				= tf_play_sound;
-	instance->update->SetKeyboardIndicators = tf_keyboard_set_indicators;
-	instance->update->SetKeyboardImeStatus	= tf_keyboard_set_ime_status;
-	instance->update->DesktopResize			= tf_DesktopResize;
-
-	//_register_update_callbacks
-	instance->update->BitmapUpdate		 = tf_BitmapUpdate;
-	instance->update->SurfaceCommand	 = tf_SurfaceCommand;
-	instance->update->SurfaceBits		 = tf_SurfaceBits;
-	instance->update->SurfaceFrameMarker = tf_gdi_surface_frame_marker;
-
-	//
-	// rdpPrimaryUpdate* primary = instance->update->primary;
-	// primary->DstBlt			  = tf_pDstBlt;
-	// primary->PatBlt			  = tf_pPatBlt;
-	// primary->ScrBlt			  = tf_pScrBlt;
-	// primary->MemBlt			  = tf_pMemBlt;
-	// primary->OpaqueRect		  = tf_pOpaqueRect;
-
-	return TRUE;
-}
-
-/* This function is called whether a session ends by failure or success.
- * Clean up everything allocated by pre_connect and post_connect.
- */
-static void tf_post_disconnect(freerdp* instance)
-{
-	my_context* context;
-
-	if (!instance)
-		return;
-
-	if (!instance->context)
-		return;
-
-	context = (my_context*)instance->context;
-	PubSub_UnsubscribeChannelConnected(instance->context->pubSub, tf_OnChannelConnectedEventHandler);
-	PubSub_UnsubscribeChannelDisconnected(instance->context->pubSub, tf_OnChannelDisconnectedEventHandler);
-	gdi_free(instance);
-	/* TODO : Clean up custom stuff */
-	WINPR_UNUSED(context);
-}
-
-/* RDP main loop.
- * Connects RDP, loops while running and handles event and dispatch, cleans up
- * after the connection ends. */
-static DWORD WINAPI tf_client_thread_proc(LPVOID arg)
-{
-	LOG_INFO("thread id = {}", getppid());
-	freerdp* instance = (freerdp*)arg;
-	DWORD	 nCount;
-	DWORD	 status;
-	DWORD	 result = 0;
-	HANDLE	 handles[64];
-	BOOL	 rc = freerdp_connect(instance);
-
-	if (instance->settings->AuthenticationOnly) {
-		result = freerdp_get_last_error(instance->context);
-		freerdp_abort_connect(instance);
-		LOG_ERROR("Authentication only, exit status {}", status);
-		goto disconnect;
+	DWORD  nCount;
+	DWORD  status;
+	DWORD  result	   = 0;
+	HANDLE handles[64] = {0};
+	if (!freerdp_connect(rdp_inst)) {
+		LOG_ERROR("failed ...........");
 	}
 
-	if (!rc) {
-		result = freerdp_get_last_error(instance->context);
-		LOG_ERROR("Authentication only, exit status {}", result);
-		return result;
-	}
-
-	while (!freerdp_shall_disconnect(instance)) {
-		nCount = freerdp_get_event_handles(instance->context, &handles[0], 64);
+	while (!freerdp_shall_disconnect(rdp_inst)) {
+		nCount = freerdp_get_event_handles(rdp_inst->context, &handles[0], 64);
 
 		if (nCount == 0) {
 			LOG_ERROR("freerdp_get_event_handles failed {}", __FUNCTION__);
@@ -362,155 +401,12 @@ static DWORD WINAPI tf_client_thread_proc(LPVOID arg)
 			break;
 		}
 
-		if (!freerdp_check_event_handles(instance->context)) {
-			if (freerdp_get_last_error(instance->context) == FREERDP_ERROR_SUCCESS) {
+		if (!freerdp_check_event_handles(rdp_inst->context)) {
+			if (freerdp_get_last_error(rdp_inst->context) == FREERDP_ERROR_SUCCESS) {
 				LOG_ERROR("Failed to check FreeRDP event handles");
 			}
 			break;
 		}
 	}
-
-disconnect:
-	freerdp_disconnect(instance);
-	return result;
-}
-
-/* Optional global initializer.
- * Here we just register a signal handler to print out stack traces
- * if available. */
-static BOOL tf_client_global_init(void)
-{
-	LOG_INFO(__FUNCTION__);
-
-	if (freerdp_handle_signals() != 0)
-		return FALSE;
-
-	return TRUE;
-}
-
-/* Optional global tear down */
-static void tf_client_global_uninit(void)
-{
-	LOG_INFO(__FUNCTION__);
-}
-
-static int tf_logon_error_info(freerdp* instance, UINT32 data, UINT32 type)
-{
-	my_context* tf;
-	const char* str_data = freerdp_get_logon_error_info_data(data);
-	const char* str_type = freerdp_get_logon_error_info_type(type);
-
-	if (!instance || !instance->context)
-		return -1;
-
-	tf = (my_context*)instance->context;
-	// WLog_INFO(TAG, "Logon Error Info %s [%s]", str_data, str_type);
-	LOG_ERROR("Logon Error Info{},{}", str_data, str_type);
-	WINPR_UNUSED(tf);
-
-	return 1;
-}
-
-static BOOL tf_client_new(freerdp* instance, rdpContext* context)
-{
-	LOG_INFO(__FUNCTION__);
-
-	my_context* tf = (my_context*)context;
-
-	if (!instance || !context)
-		return FALSE;
-
-	instance->PreConnect	 = tf_pre_connect;
-	instance->PostConnect	 = tf_post_connect;
-	instance->PostDisconnect = tf_post_disconnect;
-
-	instance->Authenticate				 = client_cli_authenticate;
-	instance->GatewayAuthenticate		 = client_cli_gw_authenticate;
-	instance->VerifyCertificateEx		 = client_cli_verify_certificate_ex;
-	instance->VerifyChangedCertificateEx = client_cli_verify_changed_certificate_ex;
-
-	// instance->LogonErrorInfo			 = tf_logon_error_info;
-	/* TODO: Client display set up */
-	WINPR_UNUSED(tf);
-	return TRUE;
-}
-
-static void tf_client_free(freerdp* instance, rdpContext* context)
-{
-	LOG_INFO(__FUNCTION__);
-
-	my_context* tf = (my_context*)instance->context;
-
-	if (!context)
-		return;
-
-	/* TODO: Client display tear down */
-	WINPR_UNUSED(tf);
-}
-
-static int tf_client_start(rdpContext* context)
-{
-	LOG_INFO(__FUNCTION__);
-	/* TODO: Start client related stuff */
-	WINPR_UNUSED(context);
-
 	return 0;
-}
-
-static int tf_client_stop(rdpContext* context)
-{
-	LOG_INFO(__FUNCTION__);
-	/* TODO: Stop client related stuff */
-	WINPR_UNUSED(context);
-	return 0;
-}
-
-static int RdpClientEntry(RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
-{
-	ZeroMemory(pEntryPoints, sizeof(RDP_CLIENT_ENTRY_POINTS));
-	pEntryPoints->Version	   = RDP_CLIENT_INTERFACE_VERSION;
-	pEntryPoints->Size		   = sizeof(RDP_CLIENT_ENTRY_POINTS_V1);
-	pEntryPoints->GlobalInit   = tf_client_global_init;
-	pEntryPoints->GlobalUninit = tf_client_global_uninit;
-	pEntryPoints->ContextSize  = sizeof(my_context);
-	pEntryPoints->ClientNew	   = tf_client_new;
-	pEntryPoints->ClientFree   = tf_client_free;
-	pEntryPoints->ClientStart  = tf_client_start;
-	pEntryPoints->ClientStop   = tf_client_stop;
-	return 0;
-}
-
-int main(int argc, char* argv[])
-{
-	LOG_INFO("thread id = {}", getppid());
-
-	int						rc = -1;
-	DWORD					status;
-	RDP_CLIENT_ENTRY_POINTS clientEntryPoints;
-	rdpContext*				context;
-	RdpClientEntry(&clientEntryPoints);
-	context = freerdp_client_context_new(&clientEntryPoints);
-
-	if (!context)
-		goto fail;
-
-	status = freerdp_client_settings_parse_command_line(context->settings, argc, argv, FALSE);
-	if (status) {
-		rc = freerdp_client_settings_command_line_status_print(context->settings, status, argc, argv);
-		goto fail;
-	}
-	printf("测试...\n");
-	freerdp_client_settings_command_line_status_print(context->settings, status, argc, argv);
-
-	if (freerdp_client_start(context) != 0)
-		goto fail;
-
-	rc = tf_client_thread_proc(context->instance);
-
-	if (freerdp_client_stop(context) != 0)
-		rc = -1;
-
-fail:
-	freerdp_client_context_free(context);
-	return rc;
 }
