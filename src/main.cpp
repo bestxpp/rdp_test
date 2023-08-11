@@ -21,17 +21,21 @@
 
 #include <unistd.h>
 
+#include <cstdio>
 #include <thread>
 
 #include "common.hpp"
+#include "freerdp/freerdp.h"
 #include "log_helper.hpp"
 #include "tf_channels.h"
 #include "tf_freerdp.h"
+#include "winpr/wtypes.h"
 
 /* This function is called whenever a new frame starts.
  * It can be used to reset invalidated areas. */
 static BOOL tf_begin_paint(rdpContext* context)
 {
+	// LOG_INFO(__FUNCTION__);
 	rdpGdi* gdi							   = context->gdi;
 	gdi->primary->hdc->hwnd->invalid->null = TRUE;
 	return TRUE;
@@ -43,10 +47,12 @@ static BOOL tf_begin_paint(rdpContext* context)
  */
 static BOOL tf_end_paint(rdpContext* context)
 {
-	// rdpGdi* gdi = context->gdi;
+	// LOG_INFO(__FUNCTION__);
+	rdpGdi* gdi = context->gdi;
 
-	// if (gdi->primary->hdc->hwnd->invalid->null)
-	// 	return TRUE;
+	if (gdi->primary->hdc->hwnd->invalid->null) {
+		return TRUE;
+	}
 
 	return TRUE;
 }
@@ -54,6 +60,7 @@ static BOOL tf_end_paint(rdpContext* context)
 /* This function is called to output a System BEEP */
 static BOOL tf_play_sound(rdpContext* context, const PLAY_SOUND_UPDATE* play_sound)
 {
+	LOG_INFO(__FUNCTION__);
 	/* TODO: Implement */
 	WINPR_UNUSED(context);
 	WINPR_UNUSED(play_sound);
@@ -63,6 +70,7 @@ static BOOL tf_play_sound(rdpContext* context, const PLAY_SOUND_UPDATE* play_sou
 /* This function is called to update the keyboard indocator LED */
 static BOOL tf_keyboard_set_indicators(rdpContext* context, UINT16 led_flags)
 {
+	LOG_INFO(__FUNCTION__);
 	/* TODO: Set local keyboard indicator LED status */
 	WINPR_UNUSED(context);
 	WINPR_UNUSED(led_flags);
@@ -72,6 +80,8 @@ static BOOL tf_keyboard_set_indicators(rdpContext* context, UINT16 led_flags)
 /* This function is called to set the IME state */
 static BOOL tf_keyboard_set_ime_status(rdpContext* context, UINT16 imeId, UINT32 imeState, UINT32 imeConvMode)
 {
+	LOG_INFO(__FUNCTION__);
+
 	if (!context)
 		return FALSE;
 
@@ -84,31 +94,119 @@ static BOOL tf_keyboard_set_ime_status(rdpContext* context, UINT16 imeId, UINT32
 
 static BOOL tf_DesktopResize(rdpContext* context)
 {
+	LOG_INFO(__FUNCTION__);
 	return TRUE;
 }
 
-BOOL tf_BitmapUpdate(rdpContext* context, const BITMAP_UPDATE* bitmap)
+void save_to_png(BYTE* imageData, int width, int height, const char* filename)
 {
+	FILE* fp = fopen(filename, "wb");
+	if (!fp)
+		abort();
+
+	png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (!png)
+		abort();
+
+	png_infop info = png_create_info_struct(png);
+	if (!info)
+		abort();
+
+	if (setjmp(png_jmpbuf(png)))
+		abort();
+
+	png_init_io(png, fp);
+
+	png_set_IHDR(
+		png,
+		info,
+		width,
+		height,
+		8,
+		PNG_COLOR_TYPE_RGBA,
+		PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_DEFAULT,
+		PNG_FILTER_TYPE_DEFAULT);
+	png_write_info(png, info);
+
+	png_bytep rows[height];
+	for (int y = 0; y < height; y++) {
+		rows[y] = &imageData[y * width * 4];
+	}
+
+	png_write_image(png, rows);
+	png_write_end(png, NULL);
+
+	fclose(fp);
+
+	if (png && info)
+		png_destroy_write_struct(&png, &info);
+}
+
+static int	img_id = 0;
+static BOOL tf_BitmapUpdate(rdpContext* context, const BITMAP_UPDATE* bitmap)
+{
+	LOG_ERROR(__FUNCTION__);
+
 	for (int i = 0; i < bitmap->number; i++) {
-		// 获取矩形区域
 		BITMAP_DATA* data = &bitmap->rectangles[i];
 
-		// 获取对应的图像数据
-		// 获取位图的位置和尺寸
-		// 获取位图的位置
-		UINT32 left	  = data->destLeft;
-		UINT32 top	  = data->destTop;
-		UINT32 right  = data->destRight;
-		UINT32 bottom = data->destBottom;
+		UINT32 width  = data->destRight - data->destLeft;
+		UINT32 height = data->destBottom - data->destTop;
 
-		// 获取对应的图像数据
 		BYTE* imageData = data->bitmapDataStream;
 
-		LOG_INFO("left {},top {},right {},bottom{}", left, top, right, bottom);
-
-		// 这里，data 包含图像数据
-		// 您可以根据需要处理这些数据
+		char filename[256] = {};
+		snprintf(filename, sizeof(filename), "image_%d.png", ++img_id);
+		save_to_png(imageData, width, height, filename);
 	}
+	return TRUE;
+}
+
+BOOL tf_SurfaceCommand(rdpContext* context, wStream* s)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_SurfaceBits(rdpContext* context, const SURFACE_BITS_COMMAND* surfaceBitsCommand)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+static BOOL tf_gdi_surface_frame_marker(rdpContext* context, const SURFACE_FRAME_MARKER* surface_frame_marker)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_pDstBlt(rdpContext* context, const DSTBLT_ORDER* dstblt)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_pPatBlt(rdpContext* context, PATBLT_ORDER* patblt)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_pScrBlt(rdpContext* context, const SCRBLT_ORDER* scrblt)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_pMemBlt(rdpContext* context, MEMBLT_ORDER* memblt)
+{
+	LOG_ERROR(__FUNCTION__);
+	return TRUE;
+}
+
+BOOL tf_pOpaqueRect(rdpContext* context, const OPAQUE_RECT_ORDER* opaque_rect)
+{
 	return TRUE;
 }
 
@@ -120,6 +218,10 @@ static BOOL tf_pre_connect(freerdp* instance)
 
 	rdpSettings* settings;
 	settings = instance->settings;
+
+	// settings->GfxAVC444	  = FALSE;
+	// settings->GfxAVC444v2 = FALSE;
+
 	// rdpGraphics* graphics = instance->context->graphics;
 	// // Initialize bitmap handling callbacks
 	// init_bitmap_callbacks(graphics);
@@ -146,8 +248,13 @@ static BOOL tf_pre_connect(freerdp* instance)
 
 	/* Load all required plugins / channels / libraries specified by current
 	 * settings. */
-	if (!freerdp_client_load_addins(instance->context->channels, instance->settings))
+	if (!freerdp_client_load_addins(instance->context->channels, instance->settings)) {
+		LOG_ERROR("Failed to load addins");
 		return FALSE;
+	}
+
+	LOG_ERROR("rfx: {}", instance->settings->RemoteFxCodec);
+	LOG_INFO("Successfully loaded addins");
 
 	/* TODO: Any code your client requires */
 	return TRUE;
@@ -167,13 +274,29 @@ static BOOL tf_post_connect(freerdp* instance)
 	if (!gdi_init(instance, PIXEL_FORMAT_XRGB32))
 		return FALSE;
 
+	LOG_ERROR("rfx: {}", instance->settings->RemoteFxCodec);
+
 	instance->update->BeginPaint			= tf_begin_paint;
 	instance->update->EndPaint				= tf_end_paint;
 	instance->update->PlaySound				= tf_play_sound;
 	instance->update->SetKeyboardIndicators = tf_keyboard_set_indicators;
 	instance->update->SetKeyboardImeStatus	= tf_keyboard_set_ime_status;
 	instance->update->DesktopResize			= tf_DesktopResize;
-	instance->update->BitmapUpdate			= tf_BitmapUpdate;
+
+	//_register_update_callbacks
+	instance->update->BitmapUpdate		 = tf_BitmapUpdate;
+	instance->update->SurfaceCommand	 = tf_SurfaceCommand;
+	instance->update->SurfaceBits		 = tf_SurfaceBits;
+	instance->update->SurfaceFrameMarker = tf_gdi_surface_frame_marker;
+
+	//
+	// rdpPrimaryUpdate* primary = instance->update->primary;
+	// primary->DstBlt			  = tf_pDstBlt;
+	// primary->PatBlt			  = tf_pPatBlt;
+	// primary->ScrBlt			  = tf_pScrBlt;
+	// primary->MemBlt			  = tf_pMemBlt;
+	// primary->OpaqueRect		  = tf_pOpaqueRect;
+
 	return TRUE;
 }
 
@@ -376,6 +499,8 @@ int main(int argc, char* argv[])
 		rc = freerdp_client_settings_command_line_status_print(context->settings, status, argc, argv);
 		goto fail;
 	}
+	printf("测试...\n");
+	freerdp_client_settings_command_line_status_print(context->settings, status, argc, argv);
 
 	if (freerdp_client_start(context) != 0)
 		goto fail;

@@ -17,4 +17,4 @@ include_directories(/usr/local/include/freerdp2)
 
 add_executable(simple_client ${SRC})
 
-target_link_libraries(simple_client -pthread -lfreerdp2 -lfreerdp-client2 -lwinpr2)
+target_link_libraries(simple_client -pthread -lfreerdp2 -lfreerdp-client2 -lwinpr2 -lpng)

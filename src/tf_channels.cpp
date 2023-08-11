@@ -18,6 +18,7 @@
  * limitations under the License.
  */
 
+#include "log_helper.hpp"
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -70,12 +71,21 @@ void tf_OnChannelConnectedEventHandler(void* context, ChannelConnectedEventArgs*
 
 	if (strcmp(e->name, RDPEI_DVC_CHANNEL_NAME) == 0) {
 		tf->rdpei = (RdpeiClientContext*)e->pInterface;
-	} else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
+		LOG_INFO("channel: {}", RDPEI_DVC_CHANNEL_NAME);
+	}
+	else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
 		gdi_graphics_pipeline_init(tf->context.gdi, (RdpgfxClientContext*)e->pInterface);
-	} else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0) {
-	} else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
-	} else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0) {
+		LOG_INFO("channel: {}", RDPGFX_DVC_CHANNEL_NAME);
+	}
+	else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0) {
+		LOG_INFO("channel: {}", RAIL_SVC_CHANNEL_NAME);
+	}
+	else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
+		LOG_INFO("channel: {}", CLIPRDR_SVC_CHANNEL_NAME);
+	}
+	else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0) {
 		tf_encomsp_init(tf, (EncomspClientContext*)e->pInterface);
+		LOG_INFO("channel: {}", ENCOMSP_SVC_CHANNEL_NAME);
 	}
 }
 
@@ -85,11 +95,15 @@ void tf_OnChannelDisconnectedEventHandler(void* context, ChannelDisconnectedEven
 
 	if (strcmp(e->name, RDPEI_DVC_CHANNEL_NAME) == 0) {
 		tf->rdpei = NULL;
-	} else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
+	}
+	else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
 		gdi_graphics_pipeline_uninit(tf->context.gdi, (RdpgfxClientContext*)e->pInterface);
-	} else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0) {
-	} else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
-	} else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0) {
+	}
+	else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0) {
+	}
+	else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
+	}
+	else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0) {
 		tf_encomsp_uninit(tf, (EncomspClientContext*)e->pInterface);
 	}
 }

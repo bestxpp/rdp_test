@@ -26,4 +26,7 @@
 #include <string>
 #include <thread>
 
+// 保存图片用。
+#include <png.h>
+
 #include "log_helper.hpp"
