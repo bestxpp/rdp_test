@@ -19,8 +19,11 @@
  * limitations under the License.
  */
 
+#include <cstddef>
+
 #include "common.hpp"
 #include "log_helper.hpp"
+#include "winpr/wtypes.h"
 
 enum guac_rdp_security
 {
@@ -280,8 +283,35 @@ BOOL guac_rdp_gdi_scrblt(rdpContext* context, const SCRBLT_ORDER* scrblt)
 	return TRUE;
 }
 
-BOOL guac_rdp_gdi_memblt(rdpContext* context, MEMBLT_ORDER* memblt)
+static int image_counter = 0;
+BOOL	   guac_rdp_gdi_memblt(rdpContext* context, MEMBLT_ORDER* memblt)
 {
+	rdpBitmap* bitmap = (rdpBitmap*)memblt->bitmap;
+
+	// 获取图像数据
+	BYTE* imageData = bitmap->data;
+
+	// TODO: 根据需要转换图像数据
+
+	// 生成唯一的文件名
+	char filename[256] = {};
+	snprintf(filename, sizeof(filename), "output_%d.png", image_counter++);
+
+	// 使用libpng保存图像数据为PNG
+	FILE*		fp		 = fopen(filename, "wb");
+	png_structp png_ptr	 = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	png_infop	info_ptr = png_create_info_struct(png_ptr);
+	png_init_io(png_ptr, fp);
+	png_set_IHDR(png_ptr, info_ptr, bitmap->width, bitmap->height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	png_write_info(png_ptr, info_ptr);
+
+	// TODO: 根据图像数据的格式调整此部分
+	for (int y = 0; y < bitmap->height; y++) {
+		png_write_row(png_ptr, &imageData[y * bitmap->width * 4]);
+	}
+
+	png_write_end(png_ptr, NULL);
+	fclose(fp);
 	return TRUE;
 }
 
@@ -290,22 +320,68 @@ BOOL guac_rdp_gdi_opaquerect(rdpContext* context, const OPAQUE_RECT_ORDER* opaqu
 	return TRUE;
 }
 
+UINT32 guac_rdp_get_native_pixel_format(BOOL alpha)
+{
+	uint32_t int_value;
+	uint8_t	 raw_bytes[4] = {0x0A, 0x0B, 0x0C, 0x0D};
+
+	memcpy(&int_value, raw_bytes, sizeof(raw_bytes));
+
+	/* Local platform stores bytes in decreasing order of significance
+	 * (big-endian) */
+	if (int_value == 0x0A0B0C0D)
+		return alpha ? PIXEL_FORMAT_ARGB32 : PIXEL_FORMAT_XRGB32;
+
+	/* Local platform stores bytes in increasing order of significance
+	 * (little-endian) */
+	else
+		return alpha ? PIXEL_FORMAT_BGRA32 : PIXEL_FORMAT_BGRX32;
+}
+
 static BOOL rdp_freerdp_pre_connect(freerdp* instance)
 {
 	guac_rdp_push_settings(instance);
 
 	freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
 
-	if (!gdi_init(instance, PIXEL_FORMAT_RGB16)) {
+	if (!gdi_init(instance, guac_rdp_get_native_pixel_format(FALSE))) {
 		return FALSE;
 	}
 
-	init_bitmap_callbacks(instance->context->graphics);
-	init_glyph_callbacks(instance->context->graphics);
-	init_pointer_callbacks(instance->context->graphics);
+	/* Set up bitmap handling */
+	rdpContext*	 context  = instance->context;
+	rdpGraphics* graphics = context->graphics;
 
-	instance->update->PlaySound				= NULL;
-	instance->update->SetKeyboardIndicators = NULL;
+	rdpBitmap bitmap  = *graphics->Bitmap_Prototype;
+	bitmap.size		  = sizeof(guac_rdp_bitmap);
+	bitmap.New		  = guac_rdp_bitmap_new;
+	bitmap.Free		  = guac_rdp_bitmap_free;
+	bitmap.Paint	  = guac_rdp_bitmap_paint;
+	bitmap.SetSurface = guac_rdp_bitmap_setsurface;
+	graphics_register_bitmap(graphics, &bitmap);
+
+	/* Set up glyph handling */
+	rdpGlyph glyph	= *graphics->Glyph_Prototype;
+	glyph.size		= sizeof(guac_rdp_glyph);
+	glyph.New		= guac_rdp_glyph_new;
+	glyph.Free		= guac_rdp_glyph_free;
+	glyph.Draw		= guac_rdp_glyph_draw;
+	glyph.BeginDraw = guac_rdp_glyph_begindraw;
+	glyph.EndDraw	= guac_rdp_glyph_enddraw;
+	graphics_register_glyph(graphics, &glyph);
+
+	/* Set up pointer handling */
+	rdpPointer pointer = *graphics->Pointer_Prototype;
+	pointer.size	   = sizeof(guac_rdp_pointer);
+	pointer.New		   = guac_rdp_pointer_new;
+	pointer.Free	   = guac_rdp_pointer_free;
+	pointer.Set		   = guac_rdp_pointer_set;
+	pointer.SetNull	   = guac_rdp_pointer_set_null;
+	pointer.SetDefault = guac_rdp_pointer_set_default;
+	graphics_register_pointer(graphics, &pointer);
+
+	instance->update->PlaySound				= NULL;	 // guac_rdp_beep_play_sound;
+	instance->update->SetKeyboardIndicators = NULL;	 // guac_rdp_keyboard_set_indicators;
 
 	instance->update->DesktopResize = guac_rdp_gdi_desktop_resize;
 	instance->update->EndPaint		= guac_rdp_gdi_end_paint;
