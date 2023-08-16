@@ -30,9 +30,9 @@
 #include <freerdp/client/rdpgfx.h>
 #include <freerdp/gdi/gfx.h>
 
+#include "common.hpp"
 #include "tf_channels.h"
 #include "tf_freerdp.h"
-
 /**
  * Function description
  *
@@ -65,6 +65,21 @@ static void tf_encomsp_uninit(my_context* tf, EncomspClientContext* encomsp)
 		tf->encomsp = NULL;
 }
 
+void xf_graphics_pipeline_init(my_context* xfc, RdpgfxClientContext* gfx)
+{
+	rdpGdi* gdi = xfc->context.gdi;
+	gdi_graphics_pipeline_init(gdi, gfx);
+
+	if (!xfc->context.settings->SoftwareGdi) {
+		gfx->UpdateSurfaces = xf_UpdateSurfaces;
+		gfx->CreateSurface	= xf_CreateSurface;
+		gfx->DeleteSurface	= xf_DeleteSurface;
+	}
+	else {
+		LOG_ERROR("不是.....");
+	}
+}
+
 void tf_OnChannelConnectedEventHandler(void* context, ChannelConnectedEventArgs* e)
 {
 	my_context* tf = (my_context*)context;
@@ -74,7 +89,9 @@ void tf_OnChannelConnectedEventHandler(void* context, ChannelConnectedEventArgs*
 		LOG_INFO("channel: {}", RDPEI_DVC_CHANNEL_NAME);
 	}
 	else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
-		gdi_graphics_pipeline_init(tf->context.gdi, (RdpgfxClientContext*)e->pInterface);
+		// gdi_graphics_pipeline_init(tf->context.gdi, (RdpgfxClientContext*)e->pInterface);
+		xf_graphics_pipeline_init(tf, (RdpgfxClientContext*)e->pInterface);
+
 		LOG_INFO("channel: {}", RDPGFX_DVC_CHANNEL_NAME);
 	}
 	else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0) {

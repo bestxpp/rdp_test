@@ -7,6 +7,7 @@
 #include <string.h>
 #include <winpr/crt.h>
 
+#include "freerdp/client/rdpgfx.h"
 #include "log_helper.hpp"
 #include "winpr/wtypes.h"
 
@@ -271,4 +272,22 @@ inline void guac_rdp_push_settings(freerdp* rdp)
 	// #endif
 	// 	rdp_settings->FastPathInput	 = FALSE;
 	// 	rdp_settings->FastPathOutput = FALSE;
+}
+
+static UINT xf_UpdateSurfaces(RdpgfxClientContext* context)
+{
+	LOG_ERROR(__FUNCTION__);
+	return 0;
+}
+
+static UINT xf_CreateSurface(RdpgfxClientContext* context, const RDPGFX_CREATE_SURFACE_PDU* createSurface)
+{
+	LOG_ERROR(__FUNCTION__);
+	return 0;
+}
+
+static UINT xf_DeleteSurface(RdpgfxClientContext* context, const RDPGFX_DELETE_SURFACE_PDU* deleteSurface)
+{
+	LOG_ERROR(__FUNCTION__);
+	return 0;
 }
