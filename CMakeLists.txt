@@ -11,9 +11,13 @@ aux_source_directory(./src SRC)
 
 include_directories(3thpart/spdlog/include)
 include_directories(3thpart/json/include)
+include_directories(3thpart/asio2/include)
+include_directories(3thpart/asio2/3rd/)
+
 
 include_directories(/usr/local/include/winpr2)
 include_directories(/usr/local/include/freerdp2)
+
 
 add_executable(simple_client ${SRC})
 
