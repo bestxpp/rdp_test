@@ -3,11 +3,13 @@
 #include <math.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <thread>
 
 #include "freerdp/client.h"
 #include "log_helper.hpp"
 #include "server.h"
+#include "winpr/wtypes.h"
 
 void guac_rdp_push_settings(freerdp* rdp)
 {
@@ -19,13 +21,13 @@ void guac_rdp_push_settings(freerdp* rdp)
 	rdp_settings->Password = strdup("1");
 
 	/* Connection */
-	rdp_settings->ServerHostname = strdup("192.168.68.134");
+	rdp_settings->ServerHostname = strdup("192.168.9.46");
 	rdp_settings->ServerPort	 = 3389;
 
 	/* Session */
 	rdp_settings->ColorDepth	 = 16;
-	rdp_settings->DesktopWidth	 = 800;
-	rdp_settings->DesktopHeight	 = 600;
+	rdp_settings->DesktopWidth	 = 1920;
+	rdp_settings->DesktopHeight	 = 1080;
 	rdp_settings->AlternateShell = NULL;
 
 	// 键盘暂时注释
@@ -234,38 +236,48 @@ BOOL guac_rdp_gdi_scrblt(rdpContext* context, const SCRBLT_ORDER* scrblt)
 
 BOOL guac_rdp_gdi_memblt(rdpContext* context, MEMBLT_ORDER* memblt)
 {
+	// return TRUE;
+	// {
+	// 	rdpBitmap* bitmap = (rdpBitmap*)memblt->bitmap;
+	// 	// 获取图像数据
+	// 	BYTE* imageData = bitmap->data;
+	// 	// TODO: 根据需要转换图像数据
+	// 	// 生成唯一的文件名
+	// 	char filename[256] = {};
+	// 	snprintf(filename, sizeof(filename), "output_%d.png", image_counter++);
+
+	// 	// 使用libpng保存图像数据为PNG
+	// 	FILE*		fp		 = fopen(filename, "wb");
+	// 	png_structp png_ptr	 = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	// 	png_infop	info_ptr = png_create_info_struct(png_ptr);
+	// 	png_init_io(png_ptr, fp);
+	// 	png_set_IHDR(png_ptr, info_ptr, bitmap->width, bitmap->height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	// 	png_write_info(png_ptr, info_ptr);
+
+	// 	// TODO: 根据图像数据的格式调整此部分
+	// 	for (int y = 0; y < bitmap->height; y++) {
+	// 		png_write_row(png_ptr, &imageData[y * bitmap->width * 4]);
+	// 	}
+
+	// 	png_write_end(png_ptr, NULL);
+	// 	fclose(fp);
+	// }
+
 	{
-		/*
-		rdpBitmap* bitmap = (rdpBitmap*)memblt->bitmap;
-		// 获取图像数据
-		BYTE* imageData = bitmap->data;
-		// TODO: 根据需要转换图像数据
-		// 生成唯一的文件名
-		char filename[256] = {};
-		snprintf(filename, sizeof(filename), "output_%d.png", image_counter++);
-
-		// 使用libpng保存图像数据为PNG
-		FILE*		fp		 = fopen(filename, "wb");
-		png_structp png_ptr	 = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-		png_infop	info_ptr = png_create_info_struct(png_ptr);
-		png_init_io(png_ptr, fp);
-		png_set_IHDR(png_ptr, info_ptr, bitmap->width, bitmap->height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-		png_write_info(png_ptr, info_ptr);
-
-		// TODO: 根据图像数据的格式调整此部分
-		for (int y = 0; y < bitmap->height; y++) {
-			png_write_row(png_ptr, &imageData[y * bitmap->width * 4]);
+		if (memblt == NULL) {
+			return true;
 		}
 
-		png_write_end(png_ptr, NULL);
-		fclose(fp);
-		*/
-	}
-
-	{
 		rdpBitmap* bitmap = (rdpBitmap*)memblt->bitmap;
+		if (bitmap == NULL) {
+			return true;
+		}
+
 		// 获取图像数据
 		BYTE* imageData = bitmap->data;
+		if (imageData == NULL) {
+			return true;
+		}
 
 		// 使用libpng保存图像数据到内存
 		png_structp png_ptr	 = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -298,8 +310,7 @@ BOOL guac_rdp_gdi_memblt(rdpContext* context, MEMBLT_ORDER* memblt)
 		imgData.width	= bitmap->width;
 		imgData.height	= bitmap->height;
 		imgData.pngData = std::move(buffer);
-
-		LOG_ERROR("x={},y={},w={},h={}", imgData.x, imgData.y, imgData.width, imgData.y);
+		// LOG_ERROR("x={},y={},w={},h={},len={}", imgData.x, imgData.y, imgData.width, imgData.height, imgData.pngData.size());
 
 		std::string serializedData = serialize(imgData);
 		//  使用send接口发送数据

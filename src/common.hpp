@@ -1,5 +1,9 @@
 #pragma once
 
+#include <netinet/in.h>
+
+#include <string>
+
 #include "log_helper.hpp"
 #include "use_header.hpp"
 
@@ -212,12 +216,14 @@ static BOOL guac_rdp_keyboard_set_indicators(rdpContext* context, UINT16 flags)
 	return TRUE;
 }
 
+#pragma pack(push, 1)
 struct ImageData
 {
-	int					  x;		// x坐标
-	int					  y;		// y坐标
-	int					  width;	// 图像宽度
-	int					  height;	// 图像高度
+	int					  x;	   // x坐标
+	int					  y;	   // y坐标
+	int					  width;   // 图像宽度
+	int					  height;  // 图像高度
+	int					  len;
 	std::vector<png_byte> pngData;	// PNG图像数据
 };
 
@@ -227,6 +233,7 @@ struct MouseEvent
 	int y;
 	int mask;
 };
+#pragma pack(pop)
 
 inline std::string serialize(const ImageData& data)
 {
@@ -244,5 +251,43 @@ inline std::string serialize(const ImageData& data)
 	// 添加PNG数据
 	result.append(reinterpret_cast<const char*>(data.pngData.data()), pngSize);
 
+	// LOG_ERROR("all = {}", result.length());
 	return result;
+}
+
+inline std::string serialize_test(const MouseEvent& data)
+{
+	std::string result;
+	// 添加坐标和尺寸信息
+	result.append(reinterpret_cast<const char*>(&data.x), sizeof(data.x));
+	result.append(reinterpret_cast<const char*>(&data.y), sizeof(data.y));
+	result.append(reinterpret_cast<const char*>(&data.mask), sizeof(data.mask));
+
+	// LOG_ERROR("all = {}", result.length());
+	return result;
+}
+
+inline MouseEvent deserialize_test(const std::string& serialized_data)
+{
+	MouseEvent data;
+	// 检查序列化数据的长度是否正确
+	if (serialized_data.length() != (sizeof(data.x) + sizeof(data.y) + sizeof(data.mask))) {
+		throw std::runtime_error("Invalid serialized data length");
+	}
+
+	// 提取 x, y 和 mask
+	size_t offset = 0;
+	int	   x_net, y_net, mask_net;
+	std::memcpy(&x_net, serialized_data.data() + offset, sizeof(x_net));
+	offset += sizeof(x_net);
+	std::memcpy(&y_net, serialized_data.data() + offset, sizeof(y_net));
+	offset += sizeof(y_net);
+	std::memcpy(&mask_net, serialized_data.data() + offset, sizeof(mask_net));
+
+	// 转换回主机字节序
+	data.x	  = ntohl(x_net);
+	data.y	  = ntohl(y_net);
+	data.mask = ntohl(mask_net);
+	// LOG_ERROR("{},{},{}", data.x, data.y, data.mask);
+	return data;
 }

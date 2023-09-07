@@ -1,6 +1,11 @@
 #include "server.h"
 
+#include <math.h>
+
 #include <cstring>
+
+#include "common.hpp"
+#include "log_helper.hpp"
 
 void wbserver::send(std::string&& s)
 {
@@ -34,21 +39,37 @@ int wbserver::run()
 			  }
 		  })
 		.bind_recv([&](auto& session_ptr, std::string_view data) {
-			printf("recv : %zu %.*s\n", data.size(), (int)data.size(), data.data());
+			//		printf("recv : %zu %.*s\n", data.size(), (int)data.size(), data.data());
 
-			MouseEvent ms;
-			memcpy(&ms, data.data(), sizeof(ms));
+			// {
+			// 	MouseEvent ms{};
+			// 	ms.x	= 50;
+			// 	ms.y	= 50;
+			// 	ms.mask = 0;
 
-			hda_client_->SendMouseEvent(ms);
-			// if (session_ptr != nullptr) {
-			// 	session_ptr->async_send(data);
+			// 	std::string tdata = serialize_test(ms);
+			// 	for (int i = 0; i < tdata.length(); i++) {
+			// 		LOG_ERROR("i: {0:x}", static_cast<unsigned char>(data.at(i)));
+			// 	}
 			// }
+			// LOG_ERROR("分割..............");
+			{
+				std::string str(data.data(), data.size());
+				MouseEvent	moums = deserialize_test(str);
+
+				if (hda_client_ != nullptr) {
+					hda_client_->SendMouseEvent(moums);
+				}
+			}
 		})
 		.bind_connect([this](auto& session_ptr) {
 			client = session_ptr;
+			if (hda_client_ != nullptr) {
+				hda_client_->Stop();
+			}
+
 			hda_client_.reset(new hda_client());
 			hda_client_->Start();
-
 			printf("client enter : %s %u %s %u\n",
 				   session_ptr->remote_address().c_str(),
 				   session_ptr->remote_port(),
@@ -57,8 +78,9 @@ int wbserver::run()
 		})
 		.bind_disconnect([this](auto& session_ptr) {
 			asio2::ignore_unused(session_ptr);
-			if (hda_client_) {
+			if (hda_client_ != nullptr) {
 				hda_client_->Stop();
+				hda_client_.reset();
 			}
 			printf("client leave : %s\n", asio2::last_error_msg().c_str());
 		})
